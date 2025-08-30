@@ -29,19 +29,26 @@ void enableRawMode() {
     // IEXTEN - disable C-v
     raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
 
+    // VMIN   - minimum necessary characters for read()
+    // VTIME  - 0.1 * n seconds of max wait before read() returns
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 1;
     // TCSAFLUSH - wait for pending output, discard unread input
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
 int main(void) {
     enableRawMode();
-    char c = 0;
-    while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
+    while (1) {
+        char c = 0;
+        read(STDIN_FILENO, &c, 1);
         if (iscntrl(c)) {
             printf("%d\r\n", c);
         } else {
             printf("%d ('%c')\r\n", c, c);
         }
+        if (c == 'q')
+            break;
     }
     return EXIT_SUCCESS;
 }
