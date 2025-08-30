@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
@@ -6,10 +7,19 @@
 
 struct termios termios_default;
 
-void disableRawMode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_default); }
+void die(const char *s) {
+    perror(s);
+    exit(1);
+}
+
+void disableRawMode() {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_default) == -1)
+        die("tcsetattr");
+}
 
 void enableRawMode() {
-    tcgetattr(STDIN_FILENO, &termios_default);
+    if (tcgetattr(STDIN_FILENO, &termios_default) == -1)
+        die("tcgetattr");
     atexit(disableRawMode);
 
     struct termios raw = termios_default;
@@ -28,20 +38,22 @@ void enableRawMode() {
     // ISIG   - disable C-z and C-c (SIGTSTP, SIGINT)
     // IEXTEN - disable C-v
     raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
-
     // VMIN   - minimum necessary characters for read()
     // VTIME  - 0.1 * n seconds of max wait before read() returns
     raw.c_cc[VMIN] = 0;
     raw.c_cc[VTIME] = 1;
     // TCSAFLUSH - wait for pending output, discard unread input
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+        die("tcsetattr");
 }
 
 int main(void) {
     enableRawMode();
     while (1) {
         char c = 0;
-        read(STDIN_FILENO, &c, 1);
+        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
+            die("read");
+
         if (iscntrl(c)) {
             printf("%d\r\n", c);
         } else {
